@@ -28,8 +28,15 @@ templates = Jinja2Templates(directory="templates")
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
 
 # Local LLM Configuration (Ollama)
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m2:cloud")  # Minimax M2 cloud model
+
+# Determine base URL based on model type and API key
+# For cloud models with API key, use ollama.com directly
+# Otherwise, use local Ollama server
+if ":cloud" in OLLAMA_MODEL and os.getenv("OLLAMA_API_KEY"):
+    OLLAMA_BASE_URL = "https://ollama.com"
+else:
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 MAX_INPUT_CHARS = 25000  # Approx 6k-8k tokens, safe buffer for 1.5 Flash
 
@@ -273,6 +280,13 @@ TEXT TO PROCESS:
         # Use longer output for papers (more detailed analysis required)
         max_tokens = 40000 if resource_type == "paper" else 1000
         
+        # Prepare headers - include API key for cloud models using ollama.com API
+        headers = {}
+        ollama_api_key = os.getenv("OLLAMA_API_KEY")
+        if ollama_api_key and OLLAMA_BASE_URL == "https://ollama.com":
+            # For direct ollama.com API access, include Authorization header
+            headers["Authorization"] = f"Bearer {ollama_api_key}"
+        
         response = requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
             json={
@@ -284,6 +298,7 @@ TEXT TO PROCESS:
                     "num_predict": max_tokens,
                 }
             },
+            headers=headers,
             timeout=180 if resource_type == "paper" else 120  # Longer timeout for papers
         )
         response.raise_for_status()
