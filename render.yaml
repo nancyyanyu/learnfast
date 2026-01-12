@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: notion-assistant
+    runtime: docker
+    plan: free  # Change to 'starter' ($7/month) for always-on
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
+      - key: OLLAMA_BASE_URL
+        value: http://localhost:11434
+      - key: OLLAMA_MODEL
+        value: minimax-m2:cloud
+    healthCheckPath: /

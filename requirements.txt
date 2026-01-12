@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+notion-client
+requests
+youtube-transcript-api
+trafilatura
+jinja2
+python-multipart
+beautifulsoup4
