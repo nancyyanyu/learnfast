@@ -8,3 +8,5 @@ trafilatura
 jinja2
 python-multipart
 beautifulsoup4
+lxml_html_clean
+pdfplumber
