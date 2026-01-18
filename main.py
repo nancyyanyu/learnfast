@@ -40,12 +40,17 @@ else:
 
 MAX_INPUT_CHARS = 25000  # Approx 6k-8k tokens, safe buffer for 1.5 Flash
 
-# Load paper prompt
+# Load paper prompts
 PAPER_PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "paper_prompt.txt")
+SURVEY_PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "survey_prompt.txt")
 PAPER_PROMPT = ""
+SURVEY_PROMPT = ""
 if os.path.exists(PAPER_PROMPT_PATH):
     with open(PAPER_PROMPT_PATH, 'r', encoding='utf-8') as f:
         PAPER_PROMPT = f.read().strip()
+if os.path.exists(SURVEY_PROMPT_PATH):
+    with open(SURVEY_PROMPT_PATH, 'r', encoding='utf-8') as f:
+        SURVEY_PROMPT = f.read().strip()
 
 # --- HELPER FUNCTIONS ---
 
@@ -189,7 +194,7 @@ def extract_resource_title(url: str, resource_type: str) -> str:
         return extract_youtube_title(url)
     elif resource_type == "blog":
         return extract_blog_title(url)
-    elif resource_type == "paper":
+    elif resource_type in ("paper", "survey_paper"):
         return extract_paper_title(url)
     else:
         return "Resource"
@@ -211,9 +216,9 @@ def fetch_content(url: str, resource_type: str) -> str:
             return f"Type: YouTube Video\nContent: {full_text}"
         except Exception as e:
             print(f"Transcript failed: {e}. Returning metadata placeholder.")
-            return "Type: YouTube Video (No Transcript Available). Please summarize based on the title/topic inferred from the URL."
+            return ""
     
-    elif resource_type == "paper":
+    elif resource_type in ("paper", "survey_paper"):
         if not is_arxiv_url(url):
             raise ValueError("Paper extraction currently only supports arXiv URLs. Please provide an arXiv paper URL (e.g., https://arxiv.org/abs/XXXX.XXXXX).")
         
@@ -251,13 +256,31 @@ def generate_summary(text: str, resource_type: str = "blog") -> Union[str, dict]
     # Truncate to save tokens
     truncated_text = text[:MAX_INPUT_CHARS]
     
-    if resource_type == "paper" and PAPER_PROMPT:
-        # Use specialized paper prompt (no JSON format)
-        prompt = f"""{PAPER_PROMPT}
+    if resource_type in ("paper", "survey_paper"):
+        paper_prompt = PAPER_PROMPT
+        if resource_type == "survey_paper" and SURVEY_PROMPT:
+            paper_prompt = SURVEY_PROMPT
+        if paper_prompt:
+            # Use specialized paper prompt (no JSON format)
+            prompt = f"""{paper_prompt}
 
 请基于以下论文内容进行分析。请严格按照上述要求，用中文进行详细分析。
 
 论文内容：
+{truncated_text}"""
+        else:
+            prompt = f"""You are a helpful research assistant. 
+1. Detect the language of the following text.
+2. Provide a concise summary (approx 3-5 sentences) IN THE SAME LANGUAGE.
+3. Provide 3-5 key bullet point takeaways IN THE SAME LANGUAGE.
+
+IMPORTANT: Respond ONLY with valid JSON in the following format (no markdown, no code blocks, just pure JSON):
+{{
+    "summary": "<insert summary here as a single string>",
+    "takeaways": ["<point 1>", "<point 2>", "<point 3>", ...]
+}}
+
+TEXT TO PROCESS:
 {truncated_text}"""
     else:
         # Use default prompt for blog/youtube (with JSON format)
@@ -278,7 +301,7 @@ TEXT TO PROCESS:
     # Call Ollama API
     try:
         # Use longer output for papers (more detailed analysis required)
-        max_tokens = 40000 if resource_type == "paper" else 1000
+        max_tokens = 40000 if resource_type in ("paper", "survey_paper") else 1000
         
         # Prepare headers - include API key for cloud models using ollama.com API
         headers = {}
@@ -299,13 +322,13 @@ TEXT TO PROCESS:
                 }
             },
             headers=headers,
-            timeout=180 if resource_type == "paper" else 120  # Longer timeout for papers
+            timeout=180 if resource_type in ("paper", "survey_paper") else 120  # Longer timeout for papers
         )
         response.raise_for_status()
         raw_text = response.json()["response"]
         
         # For papers, return raw text
-        if resource_type == "paper":
+        if resource_type in ("paper", "survey_paper"):
             return raw_text.strip()
         
         # For blog/youtube, parse JSON
@@ -512,8 +535,16 @@ async def home(request: Request):
 @app.post("/submit")
 async def submit_resource(request: Request, url: str = Form(...), resource_type: str = Form(...), reminder: str = Form(...)):
     try:
-        # 1. Extract title based on resource type
-        resource_title = extract_resource_title(url, resource_type)
+        # 1. Auto-detect survey paper based on arXiv + title
+        if is_arxiv_url(url):
+            detected_title = extract_paper_title(url)
+            if "survey" in detected_title.lower():
+                resource_type = "survey_paper"
+            else:
+                resource_type = "paper"
+            resource_title = detected_title
+        else:
+            resource_title = extract_resource_title(url, resource_type)
         
         # 2. Fetch content based on resource type
         raw_content = fetch_content(url, resource_type)
@@ -522,7 +553,8 @@ async def submit_resource(request: Request, url: str = Form(...), resource_type:
         type_mapping = {
             "youtube": "Video",
             "blog": "Article",
-            "paper": "Paper"
+            "paper": "Paper",
+            "survey_paper": "Survey Paper"
         }
         content_type = type_mapping.get(resource_type, "Article")
         
@@ -535,7 +567,7 @@ async def submit_resource(request: Request, url: str = Form(...), resource_type:
         # 5. Push to Notion
         # For papers: ai_result is a string (raw content)
         # For blog/youtube: ai_result is a dict with 'summary' and 'takeaways'
-        if resource_type == "paper":
+        if resource_type in ("paper", "survey_paper"):
             payload = {
                 "url": url,
                 "type": content_type,
