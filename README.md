@@ -1,7 +1,6 @@
 # Notion Learning Assistant
 
 A little tool to capture YouTube videos, blogs, and arXiv papers into Notion with AI summaries.
-Survey papers are detected automatically and summarized with a dedicated prompt.
 
 ![Notion Learning Assistant UI](https://github.com/nancyyanyu/learnfast/blob/main/docs/image.png)
 
@@ -17,30 +16,9 @@ Create a `.env` file or set these in your shell:
 - `OLLAMA_BASE_URL` - Local Ollama URL (default: `http://localhost:11434`)
 - `OLLAMA_API_KEY` - Required for models with ollama.com
 
-## Local Setup
-Install Ollama if you plan to use a local model:
-- https://ollama.com/download
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Start Ollama (local models only):
-```bash
-ollama serve
-```
-
-Run the app:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-Open `http://localhost:8000`.
-
-## Docker
-Build and run:
+## Docker Setup
+Build and run (default `minimax-m2:cloud` model):
 ```bash
 docker build -t notion-assistant .
 docker run --rm -p 8000:8000 \
