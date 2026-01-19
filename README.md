@@ -3,8 +3,9 @@
 A little tool to capture YouTube videos, blogs, and arXiv papers into Notion with AI summaries.
 Survey papers are detected automatically and summarized with a dedicated prompt.
 
+![Notion Learning Assistant UI](https://github.com/nancyyanyu/learnfast/blob/main/docs/image.png)
+
 ## Requirements
-- Python 3.10+
 - Notion integration token and database
 - Ollama (local or cloud via API key)
 
@@ -55,12 +56,3 @@ docker run --rm -p 8000:8000 \
 - `blog` -> Blog/article summary + takeaways
 - `paper` -> arXiv paper full analysis
 - `survey_paper` -> arXiv survey paper analysis (auto-detected)
-
-## Prompts
-Prompts are stored in `prompts/`:
-- `paper_prompt.txt`
-- `survey_prompt.txt`
-
-## Notes
-- arXiv URLs are required for paper extraction.
-- Survey detection checks if the arXiv title contains "survey".
